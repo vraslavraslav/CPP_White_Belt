@@ -1,257 +1,76 @@
-#include "test_runner.h"
+#include <>
 
-#include <vector>
-#include <string>
-#include <iostream>
+#include <cassert>
+#include <cmath>
+#include <stdexcept>
 #include <sstream>
-#include <utility>
-#include <map>
-#include <optional>
-#include <unordered_set>
+#include <stack>
+#include <string>
 
-using namespace std;
 
-struct HttpRequest {
-    string method, path, body;
-    map<string, string> get_params;
-};
-
-pair<string, string> SplitBy(const string& what, const string& by) {
-    size_t pos = what.find(by);
-    if (by.size() < what.size() && pos < what.size() - by.size()) {
-        return { what.substr(0, pos), what.substr(pos + by.size()) };
-    }
-    else {
-        return { what, {} };
-    }
+void PrintJsonString(std::ostream& out, std::string_view str) {
+    // реализуйте фукнцию
 }
 
-template<typename T>
-T FromString(const string& s) {
-    T x;
-    istringstream is(s);
-    is >> x;
-    return x;
+using ArrayContext = void;  // Замените это объявление на определение типа ArrayContext
+ArrayContext PrintJsonArray(std::ostream& out) {
+    // реализуйте функцию
 }
 
-pair<size_t, string> ParseIdAndContent(const string& body) {
-    auto [id_string, content] = SplitBy(body, " ");
-    return { FromString<size_t>(id_string), content };
+using ObjectContext = void;  // Замените это объявление на определение типа ObjectContext
+ObjectContext PrintJsonObject(std::ostream& out) {
+    // реализуйте функцию
 }
 
-struct LastCommentInfo {
-    size_t user_id, consecutive_count;
-};
-
-enum class HttpCode {
-    Ok = 200,
-    NotFound = 404,
-    Found = 302,
-};
-
-class HttpResponse {
-public:
-    explicit HttpResponse(HttpCode code) {
-        httpResponse_ = "HTTP/1.1 ";
-        SetCode(code);
-    }
-
-    HttpResponse& AddHeader(string name, string value) {
-        httpResponse_ += name + ": " + value + "\n";
-        return *this;
-    }
-    HttpResponse& SetContent(string a_content) {
-        httpResponse_ += "Content-Length: " + to_string(a_content.size()) +
-            "\n\n" + a_content;
-        return *this;
-    }
-    HttpResponse& SetCode(HttpCode a_code) {
-        switch (a_code) {
-        case HttpCode::Ok: httpResponse_ += "200 OK\n";  break;
-        case HttpCode::NotFound: httpResponse_ += "404 NotFound\n"; break;
-        case HttpCode::Found: httpResponse_ += "302 Found\n"; break;
-        }
-        return *this;
-    }
-
-    friend ostream& operator << (ostream& output, const HttpResponse& resp) {
-        return output << resp.httpResponse_ << "\n";
-    }
-private:
-    string httpResponse_;
-};
-
-class CommentServer {
-private:
-    vector<vector<string>> comments_;
-    std::optional<LastCommentInfo> last_comment;
-    unordered_set<size_t> banned_users;
-
-public:
-    HttpResponse ServeRequest(const HttpRequest& req) {
-        if (req.method == "POST") {
-            if (req.path == "/add_user") {
-                comments_.emplace_back();
-                auto response = to_string(comments_.size() - 1);
-                return HttpResponse(HttpCode::Ok).SetContent(response);
-            }
-            else if (req.path == "/add_comment") {
-                auto [user_id, comment] = ParseIdAndContent(req.body);
-
-                if (!last_comment || last_comment->user_id != user_id) {
-                    last_comment = LastCommentInfo{ user_id, 1 };
-                }
-                else if (++last_comment->consecutive_count > 3) {
-                    banned_users.insert(user_id);
-                }
-
-                if (banned_users.count(user_id) == 0) {
-                    comments_[user_id].push_back(string(comment));
-                    return HttpResponse(HttpCode::Ok);
-                }
-                else {
-                    return HttpResponse(HttpCode::Found).AddHeader("Location", "/captcha");
-                }
-            }
-            else if (req.path == "/checkcaptcha") {
-                if (auto [id, response] = ParseIdAndContent(req.body); response == "42") {
-                    banned_users.erase(id);
-                    if (last_comment && last_comment->user_id == id) {
-                        last_comment.reset();
-                    }
-                    return HttpResponse(HttpCode::Ok);
-                }
-                else
-                    return HttpResponse(HttpCode::Found).AddHeader("Location", "/captcha");
-            }
-            else {
-                return HttpResponse(HttpCode::NotFound);
-            }
-        }
-        else if (req.method == "GET") {
-            if (req.path == "/user_comments") {
-                auto user_id = FromString<size_t>(req.get_params.at("user_id"));
-                string response;
-                for (const string& c : comments_[user_id]) {
-                    response += c + '\n';
-                }
-
-                return HttpResponse(HttpCode::Ok).SetContent(response);
-            }
-            else if (req.path == "/captcha") {
-                return HttpResponse(HttpCode::Ok).SetContent
-                ("What's the answer for The Ultimate Question of Life, the Universe, and Everything?");
-            }
-            else {
-                return HttpResponse(HttpCode::NotFound);
-            }
-        }
-        return HttpResponse(HttpCode::NotFound);
-    }
-};
-
-struct HttpHeader {
-    string name, value;
-};
-
-ostream& operator<<(ostream& output, const HttpHeader& h) {
-    return output << h.name << ": " << h.value;
-}
-
-bool operator==(const HttpHeader& lhs, const HttpHeader& rhs) {
-    return lhs.name == rhs.name && lhs.value == rhs.value;
-}
-
-struct ParsedResponse {
-    int code;
-    vector<HttpHeader> headers;
-    string content;
-};
-
-istream& operator >>(istream& input, ParsedResponse& r) {
-    string line;
-    getline(input, line);
+void TestArray() {
+    std::ostringstream output;
 
     {
-        istringstream code_input(line);
-        string dummy;
-        code_input >> dummy >> r.code;
+        auto json = PrintJsonArray(output);
+        json
+            .Number(5)
+            .Number(6)
+            .BeginArray()
+            .Number(7)
+            .EndArray()
+            .Number(8)
+            .String("bingo!");
     }
 
-    size_t content_length = 0;
+    ASSERT_EQUAL(output.str(), R"([5,6,[7],8,"bingo!"])");
+}
 
-    r.headers.clear();
-    while (getline(input, line) && !line.empty()) {
-        if (auto [name, value] = SplitBy(line, ": "); name == "Content-Length") {
-            istringstream length_input(value);
-            length_input >> content_length;
-        }
-        else {
-            r.headers.push_back({ std::move(name), std::move(value) });
-        }
+void TestObject() {
+    std::ostringstream output;
+
+    {
+        auto json = PrintJsonObject(output);
+        json
+            .Key("id1").Number(1234)
+            .Key("id2").Boolean(false)
+            .Key("").Null()
+            .Key("\"").String("\\");
     }
 
-    r.content.resize(content_length);
-    input.read(r.content.data(), r.content.size());
-    return input;
+    ASSERT_EQUAL(output.str(), R"({"id1":1234,"id2":false,"":null,"\"":"\\"})");
 }
 
-void Test(CommentServer& srv, const HttpRequest& request, const ParsedResponse& expected) {
-    stringstream ss;
-    ss << srv.ServeRequest(request);
-    ParsedResponse resp;
-    ss >> resp;
-    ASSERT_EQUAL(resp.code, expected.code);
-    ASSERT_EQUAL(resp.headers, expected.headers);
-    ASSERT_EQUAL(resp.content, expected.content);
-}
+void TestAutoClose() {
+    std::ostringstream output;
 
-template <typename CommentServer>
-void TestServer() {
-    CommentServer cs;
+    {
+        auto json = PrintJsonArray(output);
+        json.BeginArray().BeginObject();
+    }
 
-    const ParsedResponse ok{ 200 };
-    const ParsedResponse redirect_to_captcha{ 302, {{"Location", "/captcha"}}, {} };
-    const ParsedResponse not_found{ 404 };
-
-    Test(cs, { "POST", "/add_user" }, { 200, {}, "0" });
-    Test(cs, { "POST", "/add_user" }, { 200, {}, "1" });
-    Test(cs, { "POST", "/add_comment", "0 Hello" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Hi" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Buy my goods" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Enlarge" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Buy my goods" }, redirect_to_captcha);
-    Test(cs, { "POST", "/add_comment", "0 What are you selling?" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Buy my goods" }, redirect_to_captcha);
-    Test(
-        cs,
-        { "GET", "/user_comments", "", {{"user_id", "0"}} },
-        { 200, {}, "Hello\nWhat are you selling?\n" }
-    );
-    Test(
-        cs,
-        { "GET", "/user_comments", "", {{"user_id", "1"}} },
-        { 200, {}, "Hi\nBuy my goods\nEnlarge\n" }
-    );
-    Test(
-        cs,
-        { "GET", "/captcha" },
-        { 200, {}, {"What's the answer for The Ultimate Question of Life, the Universe, and Everything?"} }
-    );
-    Test(cs, { "POST", "/checkcaptcha", "1 24" }, redirect_to_captcha);
-    Test(cs, { "POST", "/checkcaptcha", "1 42" }, ok);
-    Test(cs, { "POST", "/add_comment", "1 Sorry! No spam any more" }, ok);
-    Test(
-        cs,
-        { "GET", "/user_comments", "", {{"user_id", "1"}} },
-        { 200, {}, "Hi\nBuy my goods\nEnlarge\nSorry! No spam any more\n" }
-    );
-
-    Test(cs, { "GET", "/user_commntes" }, not_found);
-    Test(cs, { "POST", "/add_uesr" }, not_found);
+    ASSERT_EQUAL(output.str(), R"([[{}]])");
 }
 
 int main() {
     TestRunner tr;
-    RUN_TEST(tr, TestServer<CommentServer>);
+    RUN_TEST(tr, TestArray);
+    RUN_TEST(tr, TestObject);
+    RUN_TEST(tr, TestAutoClose);
+
+    return 0;
 }
